@@ -3,9 +3,19 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 function getAuth() {
+  let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '';
+  // Handle both escaped \n and real newlines
+  if (privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+  // Remove surrounding quotes if present
+  if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+    privateKey = privateKey.slice(1, -1).replace(/\\n/g, '\n');
+  }
+
   const credentials = {
     client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
-    private_key: (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n'),
+    private_key: privateKey,
   };
 
   return new google.auth.GoogleAuth({
@@ -72,8 +82,9 @@ export async function POST(request: NextRequest) {
       name: driveFile.data.name,
       fileId,
     });
-  } catch (err) {
-    console.error('Drive upload error:', err);
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Drive upload error:', message);
+    return NextResponse.json({ error: 'Upload failed', detail: message }, { status: 500 });
   }
 }

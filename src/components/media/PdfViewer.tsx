@@ -166,7 +166,6 @@ export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfVie
           src={embedUrl}
           className="flex-1 w-full border-0"
           allow="autoplay"
-          sandbox="allow-scripts allow-same-origin allow-popups"
         />
       </div>
     );

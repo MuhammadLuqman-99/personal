@@ -4,7 +4,7 @@ import { useCallback, useRef } from 'react';
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '';
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const SCOPES = 'https://www.googleapis.com/auth/drive';
 
 interface PickerResult {
   name: string;
@@ -14,7 +14,6 @@ interface PickerResult {
 
 let gapiLoaded = false;
 let gisLoaded = false;
-let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 let accessToken: string | null = null;
 
 declare global {
@@ -63,15 +62,16 @@ export function useGoogleDrivePicker() {
 
     await Promise.all([ensureGapiLoaded(), ensureGisLoaded()]);
 
-    // If no token, request one
     if (!accessToken) {
-      tokenClient = window.google.accounts.oauth2.initTokenClient({
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
         callback: (response) => {
           if (response.access_token) {
             accessToken = response.access_token;
             showPicker();
+          } else {
+            callbackRef.current?.(null);
           }
         },
       });
@@ -81,15 +81,14 @@ export function useGoogleDrivePicker() {
     }
 
     function showPicker() {
-      // Upload view - lets user upload new files
-      const uploadView = new window.google.picker.DocsUploadView();
+      const uploadView = new window.google.picker.DocsUploadView()
+        .setIncludeFolders(true);
 
-      // Docs view - lets user pick existing PDFs
       const docsView = new window.google.picker.DocsView()
         .setIncludeFolders(true)
+        .setSelectFolderEnabled(false)
         .setMimeTypes('application/pdf');
 
-      // Extract project number from client ID (before the dash)
       const appId = CLIENT_ID.split('-')[0];
 
       const picker = new window.google.picker.PickerBuilder()
@@ -98,46 +97,66 @@ export function useGoogleDrivePicker() {
         .setOAuthToken(accessToken!)
         .setDeveloperKey(API_KEY)
         .setAppId(appId)
-        .setCallback(async (data: google.picker.ResponseObject) => {
-          if (data.action === 'picked' && data.docs && data.docs.length > 0) {
-            const doc = data.docs[0];
-            const fileId = doc.id;
-
-            // Make the file publicly readable
-            try {
-              await fetch(
-                `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
-                {
-                  method: 'POST',
-                  headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    role: 'reader',
-                    type: 'anyone',
-                  }),
-                }
-              );
-            } catch {
-              // Permission might already exist
-            }
-
-            const viewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
-
-            callbackRef.current?.({
-              name: doc.name || 'Untitled',
-              url: viewUrl,
-              mimeType: doc.mimeType || 'application/pdf',
-            });
-          } else if (data.action === 'cancel') {
-            callbackRef.current?.(null);
-          }
-        })
+        .setSize(window.innerWidth, window.innerHeight)
+        .setCallback(pickerCallback)
         .setTitle('Select or Upload PDF')
         .build();
 
       picker.setVisible(true);
+
+      // Make picker full screen on mobile
+      setTimeout(() => {
+        const pickerEl = document.querySelector('.picker-dialog') as HTMLElement;
+        if (pickerEl) {
+          pickerEl.style.top = '0';
+          pickerEl.style.left = '0';
+          pickerEl.style.width = '100vw';
+          pickerEl.style.height = '100vh';
+          pickerEl.style.maxWidth = '100vw';
+          pickerEl.style.maxHeight = '100vh';
+        }
+        const bgEl = document.querySelector('.picker-dialog-bg') as HTMLElement;
+        if (bgEl) {
+          bgEl.style.opacity = '0.5';
+        }
+      }, 100);
+    }
+
+    async function pickerCallback(data: google.picker.ResponseObject) {
+      if (data.action === 'picked' && data.docs && data.docs.length > 0) {
+        const doc = data.docs[0];
+        const fileId = doc.id;
+
+        // Make file publicly readable
+        try {
+          await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                role: 'reader',
+                type: 'anyone',
+              }),
+            }
+          );
+        } catch {
+          // Permission might already exist
+        }
+
+        const viewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+
+        callbackRef.current?.({
+          name: doc.name || 'Untitled',
+          url: viewUrl,
+          mimeType: doc.mimeType || 'application/pdf',
+        });
+      } else if (data.action === 'cancel') {
+        callbackRef.current?.(null);
+      }
     }
   }, []);
 

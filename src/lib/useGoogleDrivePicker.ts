@@ -89,11 +89,15 @@ export function useGoogleDrivePicker() {
         .setIncludeFolders(true)
         .setMimeTypes('application/pdf');
 
+      // Extract project number from client ID (before the dash)
+      const appId = CLIENT_ID.split('-')[0];
+
       const picker = new window.google.picker.PickerBuilder()
         .addView(uploadView)
         .addView(docsView)
         .setOAuthToken(accessToken!)
         .setDeveloperKey(API_KEY)
+        .setAppId(appId)
         .setCallback(async (data: google.picker.ResponseObject) => {
           if (data.action === 'picked' && data.docs && data.docs.length > 0) {
             const doc = data.docs[0];

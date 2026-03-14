@@ -12,6 +12,12 @@ const geistSans = localFont({
 export const metadata: Metadata = {
   title: "Life Dashboard",
   description: "Your personal life dashboard",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Life Dashboard",
+  },
 };
 
 export const viewport: Viewport = {
@@ -29,6 +35,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} font-sans antialiased bg-gray-50 text-gray-900`}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js');
+                });
+              }
+            `,
+          }}
+        />
         <main className="min-h-screen pb-20 max-w-lg mx-auto">
           {children}
         </main>

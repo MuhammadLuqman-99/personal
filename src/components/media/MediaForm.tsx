@@ -3,7 +3,13 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Loader2 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import { MediaItem, MediaType, MediaStatus } from '@/lib/types';
+
+const supabaseClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
 
 interface MediaFormProps {
   item?: MediaItem;
@@ -30,18 +36,34 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.type !== 'application/pdf') {
+      setError('Only PDF files are allowed');
+      return;
+    }
+
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
+    setError('');
 
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (res.ok) {
-        setPdfUrl(data.url);
-      } else {
-        setError(data.error || 'Upload failed');
+      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+
+      const { error: uploadError } = await supabaseClient.storage
+        .from('pdfs')
+        .upload(fileName, file, {
+          contentType: 'application/pdf',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        setError(uploadError.message);
+        return;
       }
+
+      const { data: urlData } = supabaseClient.storage
+        .from('pdfs')
+        .getPublicUrl(fileName);
+
+      setPdfUrl(urlData.publicUrl);
     } catch {
       setError('Upload failed');
     } finally {

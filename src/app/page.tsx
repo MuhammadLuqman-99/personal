@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   BookOpen, Eye, Wallet, UtensilsCrossed, TrendingUp, TrendingDown,
-  Minus, ChevronRight, Loader2, BookMarked, Video,
+  Minus, ChevronRight, ChevronDown, Loader2, BookMarked, Video, X,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import QuickActions from '@/components/dashboard/QuickActions';
@@ -29,6 +29,7 @@ interface DashboardData {
     todayProtein: number;
     todayCarbs: number;
     todayFat: number;
+    todayFoods: { name: string; calories: number; protein: number; carbs: number; fat: number; meal_type: string }[];
     avgDailyCalories: number;
     topFoods: { name: string; count: number; avgCal: number }[];
     target: number;
@@ -47,6 +48,7 @@ const categoryLabels: Record<string, string> = {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showMacroDetail, setShowMacroDetail] = useState(false);
 
   useEffect(() => {
     fetch('/api/dashboard')
@@ -218,9 +220,13 @@ export default function DashboardPage() {
                 <ChevronRight size={16} className="text-gray-400" />
               </div>
 
-              {/* Calories today */}
+              {/* Calories today - clickable */}
               <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="bg-orange-50 rounded-lg p-3">
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setShowMacroDetail(true); }}
+                  className="bg-orange-50 rounded-lg p-3 text-left hover:bg-orange-100 transition-colors relative"
+                >
                   <p className="text-xs text-gray-500">Today</p>
                   <p className="text-xl font-bold text-gray-900 mt-0.5">
                     {data.food.todayCalories.toLocaleString()} <span className="text-xs font-normal text-gray-400">kcal</span>
@@ -233,8 +239,11 @@ export default function DashboardPage() {
                       style={{ width: `${Math.min((data.food.todayCalories / data.food.target) * 100, 100)}%` }}
                     />
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Target: {data.food.target.toLocaleString()}</p>
-                </div>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <p className="text-[10px] text-gray-400">Target: {data.food.target.toLocaleString()}</p>
+                    <ChevronDown size={10} className="text-gray-400" />
+                  </div>
+                </button>
                 <div className="bg-orange-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500">Daily Average</p>
                   <p className="text-xl font-bold text-gray-900 mt-0.5">
@@ -244,7 +253,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Macros today */}
+              {/* Macros summary */}
               {(data.food.todayProtein > 0 || data.food.todayCarbs > 0 || data.food.todayFat > 0) && (
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <div className="bg-blue-50 rounded-lg p-2 text-center">
@@ -288,6 +297,113 @@ export default function DashboardPage() {
             </div>
           </Link>
         </>
+      )}
+
+      {/* Macro Detail Modal */}
+      {showMacroDetail && data && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end justify-center"
+          onClick={() => setShowMacroDetail(false)}
+        >
+          <div
+            className="bg-white w-full max-w-lg rounded-t-2xl p-5 pb-8 animate-in slide-in-from-bottom"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Today&apos;s Nutrition</h3>
+              <button
+                onClick={() => setShowMacroDetail(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100"
+              >
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Total Summary */}
+            <div className="bg-orange-50 rounded-xl p-4 mb-4 text-center">
+              <p className="text-3xl font-bold text-gray-900">
+                {data.food.todayCalories.toLocaleString()}
+                <span className="text-sm font-normal text-gray-400 ml-1">kcal</span>
+              </p>
+              <div className="mt-2 h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    data.food.todayCalories > data.food.target ? 'bg-red-500' : 'bg-orange-500'
+                  }`}
+                  style={{ width: `${Math.min((data.food.todayCalories / data.food.target) * 100, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Target: {data.food.target.toLocaleString()} kcal</p>
+            </div>
+
+            {/* Macro Bars */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {(() => {
+                const total = data.food.todayProtein + data.food.todayCarbs + data.food.todayFat;
+                const pPct = total > 0 ? Math.round((data.food.todayProtein / total) * 100) : 0;
+                const cPct = total > 0 ? Math.round((data.food.todayCarbs / total) * 100) : 0;
+                const fPct = total > 0 ? Math.round((data.food.todayFat / total) * 100) : 0;
+                return (
+                  <>
+                    <div className="bg-blue-50 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold text-blue-600">{data.food.todayProtein}g</p>
+                      <p className="text-[10px] text-gray-500 uppercase font-medium mt-0.5">Protein</p>
+                      <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pPct}%` }} />
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{pPct}%</p>
+                    </div>
+                    <div className="bg-yellow-50 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold text-yellow-600">{data.food.todayCarbs}g</p>
+                      <p className="text-[10px] text-gray-500 uppercase font-medium mt-0.5">Carbs</p>
+                      <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                        <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${cPct}%` }} />
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{cPct}%</p>
+                    </div>
+                    <div className="bg-red-50 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-bold text-red-500">{data.food.todayFat}g</p>
+                      <p className="text-[10px] text-gray-500 uppercase font-medium mt-0.5">Fat</p>
+                      <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                        <div className="h-full bg-red-400 rounded-full" style={{ width: `${fPct}%` }} />
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{fPct}%</p>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Food breakdown list */}
+            {data.food.todayFoods.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">What you ate today</p>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {data.food.todayFoods.map((food, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{food.name}</p>
+                        <p className="text-[10px] text-gray-400 capitalize">{food.meal_type}</p>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-orange-600">{food.calories} kcal</p>
+                          <p className="text-[10px] text-gray-400">
+                            P:{food.protein}g C:{food.carbs}g F:{food.fat}g
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {data.food.todayFoods.length === 0 && (
+              <p className="text-center text-sm text-gray-400 py-4">No food logged today</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

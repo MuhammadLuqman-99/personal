@@ -96,7 +96,6 @@ export function useGoogleDrivePicker() {
         .addView(uploadView)
         .addView(docsView)
         .setOAuthToken(accessToken!)
-        .setDeveloperKey(API_KEY)
         .setAppId(appId)
         .setCallback(async (data: google.picker.ResponseObject) => {
           if (data.action === 'picked' && data.docs && data.docs.length > 0) {

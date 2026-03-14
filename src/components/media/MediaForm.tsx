@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Loader2, Link as LinkIcon } from 'lucide-react';
 import { MediaItem, MediaType, MediaStatus } from '@/lib/types';
-import { useGoogleDrivePicker } from '@/lib/useGoogleDrivePicker';
 
 interface MediaFormProps {
   item?: MediaItem;
@@ -13,7 +12,7 @@ interface MediaFormProps {
 
 export default function MediaForm({ item, mode }: MediaFormProps) {
   const router = useRouter();
-  const { openPicker } = useGoogleDrivePicker();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [type, setType] = useState<MediaType>(item?.type || 'book');
   const [title, setTitle] = useState(item?.title || '');
@@ -28,18 +27,49 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [error, setError] = useState('');
 
-  function handleDrivePicker() {
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      setError('Only PDF files are allowed');
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      setError('File too large (max 50MB)');
+      return;
+    }
+
     setUploading(true);
     setError('');
-    openPicker((result) => {
-      setUploading(false);
-      if (result) {
-        setPdfUrl(result.url);
-        if (!title && result.name) {
-          setTitle(result.name.replace(/\.pdf$/i, ''));
-        }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload-drive', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Upload failed');
+        return;
       }
-    });
+
+      const data = await res.json();
+      setPdfUrl(data.url);
+      if (!title && data.name) {
+        setTitle(data.name.replace(/\.pdf$/i, ''));
+      }
+    } catch {
+      setError('Upload failed');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -199,21 +229,26 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleDrivePicker}
-                    disabled={uploading}
-                    className="flex-1 py-3 rounded-xl bg-blue-50 text-blue-700 font-medium text-sm hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 border border-blue-200"
-                  >
-                    {uploading ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Upload size={16} />
-                    )}
-                    {uploading ? 'Opening Drive...' : 'Upload to Google Drive'}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full py-3 rounded-xl bg-blue-50 text-blue-700 font-medium text-sm hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 border border-blue-200"
+                >
+                  {uploading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Upload size={16} />
+                  )}
+                  {uploading ? 'Uploading...' : 'Upload PDF'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
                 <button
                   type="button"
                   onClick={() => setShowLinkInput(!showLinkInput)}

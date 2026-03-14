@@ -108,6 +108,21 @@ export default function ExpenseForm() {
         </div>
       </div>
 
+      {/* Custom category name */}
+      {category === 'other' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">What did you spend on?</label>
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g. Haircut, Parking, Gift..."
+            className={inputClass}
+            required
+          />
+        </div>
+      )}
+
       {/* Date */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
@@ -120,16 +135,18 @@ export default function ExpenseForm() {
       </div>
 
       {/* Note */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Note (optional)</label>
-        <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="What was this for?"
-          className={inputClass}
-        />
-      </div>
+      {category !== 'other' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Note (optional)</label>
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What was this for?"
+            className={inputClass}
+          />
+        </div>
+      )}
 
       {/* Submit */}
       <button

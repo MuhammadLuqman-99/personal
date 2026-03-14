@@ -10,8 +10,8 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Media Tracker",
-  description: "Track your books, PDFs, and videos",
+  title: "Life Dashboard",
+  description: "Your personal life dashboard",
 };
 
 export const viewport: Viewport = {

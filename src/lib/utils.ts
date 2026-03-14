@@ -42,3 +42,58 @@ export function getStatusColor(status: string): string {
     default: return 'bg-gray-100 text-gray-800';
   }
 }
+
+// Finance utils
+export const CURRENCY_SYMBOL = 'RM';
+export const DAILY_CALORIE_TARGET = 2000;
+
+export function formatCurrency(amount: number): string {
+  return `${CURRENCY_SYMBOL} ${amount.toFixed(2)}`;
+}
+
+export function formatDate(date: string): string {
+  return new Date(date).toLocaleDateString('en-MY', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+export function getTodayString(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+export function getCategoryColor(category: string): string {
+  switch (category) {
+    case 'food': return 'bg-green-100 text-green-700';
+    case 'transport': return 'bg-blue-100 text-blue-700';
+    case 'shopping': return 'bg-pink-100 text-pink-700';
+    case 'bills': return 'bg-orange-100 text-orange-700';
+    case 'entertainment': return 'bg-purple-100 text-purple-700';
+    case 'other': return 'bg-gray-100 text-gray-700';
+    default: return 'bg-gray-100 text-gray-700';
+  }
+}
+
+export function getCategoryLabel(category: string): string {
+  switch (category) {
+    case 'food': return 'Food';
+    case 'transport': return 'Transport';
+    case 'shopping': return 'Shopping';
+    case 'bills': return 'Bills';
+    case 'entertainment': return 'Entertainment';
+    case 'other': return 'Other';
+    default: return category;
+  }
+}
+
+export function getMealTypeLabel(type: string): string {
+  switch (type) {
+    case 'breakfast': return 'Breakfast';
+    case 'lunch': return 'Lunch';
+    case 'dinner': return 'Dinner';
+    case 'snack': return 'Snack';
+    default: return type;
+  }
+}

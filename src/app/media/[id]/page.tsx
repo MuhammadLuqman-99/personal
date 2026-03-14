@@ -10,7 +10,7 @@ import MediaForm from '@/components/media/MediaForm';
 import ProgressBar from '@/components/media/ProgressBar';
 import StatusBadge from '@/components/media/StatusBadge';
 
-export default function DetailPage() {
+export default function MediaDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [item, setItem] = useState<MediaItem | null>(null);
@@ -39,7 +39,7 @@ export default function DetailPage() {
     setDeleting(true);
     try {
       await fetch(`/api/media/${params.id}`, { method: 'DELETE' });
-      router.push('/');
+      router.push('/media');
       router.refresh();
     } catch {
       setDeleting(false);
@@ -58,7 +58,7 @@ export default function DetailPage() {
     return (
       <div className="px-4 pt-6 text-center">
         <p className="text-gray-500">Item not found</p>
-        <Link href="/" className="text-blue-600 text-sm mt-2 inline-block">
+        <Link href="/media" className="text-blue-600 text-sm mt-2 inline-block">
           Go back
         </Link>
       </div>
@@ -86,11 +86,10 @@ export default function DetailPage() {
 
   return (
     <div className="px-4 pt-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <Link
-            href="/"
+            href="/media"
             className="p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <ArrowLeft size={20} />
@@ -102,7 +101,6 @@ export default function DetailPage() {
         <StatusBadge status={item.status} />
       </div>
 
-      {/* Video embed */}
       {item.type === 'video' && embedUrl && (
         <div className="aspect-video rounded-xl overflow-hidden bg-black mb-4">
           <iframe
@@ -114,7 +112,6 @@ export default function DetailPage() {
         </div>
       )}
 
-      {/* Video link (non-YouTube) */}
       {item.type === 'video' && item.video_url && !embedUrl && (
         <a
           href={item.video_url}
@@ -127,17 +124,15 @@ export default function DetailPage() {
         </a>
       )}
 
-      {/* Book progress */}
       {item.type === 'book' && item.total_pages && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
           <ProgressBar currentPage={item.current_page} totalPages={item.total_pages} />
         </div>
       )}
 
-      {/* PDF reader link */}
       {item.type === 'book' && item.pdf_url && (
         <Link
-          href={`/${item.id}/reading`}
+          href={`/media/${item.id}/reading`}
           className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors mb-4"
         >
           <BookOpen size={16} />
@@ -145,7 +140,6 @@ export default function DetailPage() {
         </Link>
       )}
 
-      {/* Notes */}
       {item.notes && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
           <h3 className="text-sm font-medium text-gray-700 mb-1">Notes</h3>
@@ -153,7 +147,6 @@ export default function DetailPage() {
         </div>
       )}
 
-      {/* Actions */}
       <div className="flex gap-3 mt-6">
         <button
           onClick={() => setEditing(true)}

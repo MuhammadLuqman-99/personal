@@ -1,0 +1,179 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
+
+interface PdfViewerProps {
+  url: string;
+  initialPage?: number;
+  onPageChange?: (page: number) => void;
+}
+
+export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfViewerProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfDocRef = useRef<any>(null);
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [totalPages, setTotalPages] = useState(0);
+  const [scale, setScale] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Load PDF document
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPdf() {
+      try {
+        setLoading(true);
+        setError('');
+
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+        const loadingTask = pdfjsLib.getDocument(url);
+        const pdf = await loadingTask.promise;
+
+        if (cancelled) return;
+
+        pdfDocRef.current = pdf;
+        setTotalPages(pdf.numPages);
+
+        // Clamp initial page
+        const startPage = Math.min(Math.max(1, initialPage), pdf.numPages);
+        setCurrentPage(startPage);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load PDF:', err);
+          setError('Failed to load PDF');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadPdf();
+    return () => { cancelled = true; };
+  }, [url, initialPage]);
+
+  // Render page
+  const renderPage = useCallback(async (pageNum: number) => {
+    const pdf = pdfDocRef.current;
+    const canvas = canvasRef.current;
+    if (!pdf || !canvas) return;
+
+    try {
+      const page = await pdf.getPage(pageNum);
+      const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
+
+      // Calculate scale to fit width
+      const unscaledViewport = page.getViewport({ scale: 1 });
+      const fitScale = (containerWidth - 16) / unscaledViewport.width; // 16px padding
+      const finalScale = fitScale * scale;
+
+      const viewport = page.getViewport({ scale: finalScale });
+
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      await page.render({
+        canvasContext: ctx,
+        viewport: viewport,
+      }).promise;
+    } catch (err) {
+      console.error('Failed to render page:', err);
+    }
+  }, [scale]);
+
+  // Re-render when page or scale changes
+  useEffect(() => {
+    if (pdfDocRef.current && currentPage > 0) {
+      renderPage(currentPage);
+    }
+  }, [currentPage, renderPage]);
+
+  function goToPage(page: number) {
+    const clamped = Math.min(Math.max(1, page), totalPages);
+    setCurrentPage(clamped);
+    onPageChange?.(clamped);
+  }
+
+  function zoom(delta: number) {
+    setScale((prev) => Math.min(Math.max(0.5, prev + delta), 3));
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-red-500 text-sm">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Controls */}
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-30"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <span className="text-xs text-gray-600 min-w-[60px] text-center">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-30"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => zoom(-0.25)}
+            disabled={scale <= 0.5}
+            className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-30"
+          >
+            <ZoomOut size={16} />
+          </button>
+          <span className="text-xs text-gray-500 min-w-[40px] text-center">
+            {Math.round(scale * 100)}%
+          </span>
+          <button
+            onClick={() => zoom(0.25)}
+            disabled={scale >= 3}
+            className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-30"
+          >
+            <ZoomIn size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* PDF Canvas */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-auto bg-gray-200 flex justify-center"
+      >
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 size={24} className="animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <canvas
+            ref={canvasRef}
+            className="block my-2 shadow-lg"
+          />
+        )}
+      </div>
+    </div>
+  );
+}

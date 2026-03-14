@@ -38,3 +38,57 @@ export interface UpdateMediaInput {
   notes?: string;
   cover_image_url?: string;
 }
+
+// Finance types
+export type ExpenseCategory = 'food' | 'transport' | 'shopping' | 'bills' | 'entertainment' | 'other';
+
+export interface Expense {
+  id: string;
+  amount: number;
+  category: ExpenseCategory;
+  note: string | null;
+  date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateExpenseInput {
+  amount: number;
+  category: ExpenseCategory;
+  note?: string;
+  date?: string;
+}
+
+export interface UpdateExpenseInput {
+  amount?: number;
+  category?: ExpenseCategory;
+  note?: string;
+  date?: string;
+}
+
+// Food types
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export interface FoodLog {
+  id: string;
+  meal_name: string;
+  calories: number;
+  meal_type: MealType;
+  date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateFoodLogInput {
+  meal_name: string;
+  calories: number;
+  meal_type: MealType;
+  date?: string;
+}
+
+export interface UpdateFoodLogInput {
+  meal_name?: string;
+  calories?: number;
+  meal_type?: MealType;
+  date?: string;
+}

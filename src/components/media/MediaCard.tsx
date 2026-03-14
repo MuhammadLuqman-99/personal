@@ -15,7 +15,7 @@ export default function MediaCard({ item }: MediaCardProps) {
   const thumbnail = item.type === 'video' ? getYouTubeThumbnail(item.video_url) : null;
 
   return (
-    <Link href={`/${item.id}`} className="block">
+    <Link href={`/media/${item.id}`} className="block">
       <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow active:bg-gray-50">
         <div className="flex gap-3">
           {/* Icon or Thumbnail */}

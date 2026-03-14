@@ -82,7 +82,7 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
 
       if (res.ok) {
         const data = await res.json();
-        router.push(mode === 'create' ? `/${data.id}` : '/');
+        router.push(mode === 'create' ? `/media/${data.id}` : '/media');
         router.refresh();
       } else {
         const data = await res.json();

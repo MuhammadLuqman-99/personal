@@ -1,74 +1,100 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { BookOpen, Loader2 } from 'lucide-react';
-import { MediaItem, MediaType, MediaStatus } from '@/lib/types';
-import MediaCard from '@/components/media/MediaCard';
-import MediaFilters from '@/components/media/MediaFilters';
+import { useState, useEffect } from 'react';
+import { BookOpen, Wallet, UtensilsCrossed } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
+import DashboardCard from '@/components/dashboard/DashboardCard';
+import QuickActions from '@/components/dashboard/QuickActions';
 
-export default function HomePage() {
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchItems = useCallback(async (filters?: {
-    search: string;
-    type: MediaType | '';
-    status: MediaStatus | '';
-  }) => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (filters?.search) params.set('search', filters.search);
-    if (filters?.type) params.set('type', filters.type);
-    if (filters?.status) params.set('status', filters.status);
-
-    try {
-      const res = await fetch(`/api/media?${params.toString()}`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setItems(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch items:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+export default function DashboardPage() {
+  const [mediaCount, setMediaCount] = useState(0);
+  const [todaySpent, setTodaySpent] = useState(0);
+  const [todayCalories, setTodayCalories] = useState(0);
+  const [calorieTarget, setCalorieTarget] = useState(2000);
 
   useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+    const today = new Date().toISOString().split('T')[0];
+
+    // Fetch in-progress media count
+    fetch('/api/media?status=in_progress')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setMediaCount(data.length);
+      })
+      .catch(() => {});
+
+    // Fetch today's spending
+    fetch('/api/expenses/summary?period=today')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.total !== undefined) setTodaySpent(data.total);
+      })
+      .catch(() => {});
+
+    // Fetch today's calories
+    fetch(`/api/food/summary?date=${today}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.total_calories !== undefined) setTodayCalories(data.total_calories);
+        if (data.target) setCalorieTarget(data.target);
+      })
+      .catch(() => {});
+  }, []);
+
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
   return (
     <div className="px-4 pt-6">
       {/* Header */}
-      <div className="mb-5">
-        <h1 className="text-xl font-bold text-gray-900">My Library</h1>
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-gray-900">{greeting}</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Track your books & videos
+          {now.toLocaleDateString('en-MY', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
         </p>
       </div>
 
-      {/* Filters */}
-      <MediaFilters onFilterChange={fetchItems} />
+      {/* Summary Cards */}
+      <div className="space-y-3 mb-6">
+        <DashboardCard
+          icon={BookOpen}
+          title="Reading & Watching"
+          value={`${mediaCount} in progress`}
+          subtitle="Books & videos"
+          href="/media"
+          iconBg="bg-purple-100"
+          iconColor="text-purple-600"
+        />
 
-      {/* List */}
-      <div className="mt-4 space-y-3">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 size={24} className="animate-spin text-gray-400" />
-          </div>
-        ) : items.length === 0 ? (
-          <div className="text-center py-12">
-            <BookOpen size={40} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500 text-sm">No items yet</p>
-            <p className="text-gray-400 text-xs mt-1">
-              Tap + to add your first book or video
-            </p>
-          </div>
-        ) : (
-          items.map((item) => <MediaCard key={item.id} item={item} />)
-        )}
+        <DashboardCard
+          icon={Wallet}
+          title="Today's Spending"
+          value={formatCurrency(todaySpent)}
+          subtitle="Tap to see details"
+          href="/finance"
+          iconBg="bg-green-100"
+          iconColor="text-green-600"
+        />
+
+        <DashboardCard
+          icon={UtensilsCrossed}
+          title="Calories Today"
+          value={`${todayCalories.toLocaleString()} kcal`}
+          subtitle={`Target: ${calorieTarget.toLocaleString()} kcal`}
+          href="/food"
+          iconBg="bg-orange-100"
+          iconColor="text-orange-600"
+        />
       </div>
+
+      {/* Quick Actions */}
+      <QuickActions />
     </div>
   );
 }

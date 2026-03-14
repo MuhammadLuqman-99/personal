@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import MobileNav from "@/components/layout/MobileNav";
+import InstallPrompt from "@/components/ui/InstallPrompt";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -50,6 +51,7 @@ export default function RootLayout({
           {children}
         </main>
         <MobileNav />
+        <InstallPrompt />
       </body>
     </html>
   );

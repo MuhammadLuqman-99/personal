@@ -1,15 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Loader2 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { Upload, Loader2, Link as LinkIcon } from 'lucide-react';
 import { MediaItem, MediaType, MediaStatus } from '@/lib/types';
-
-const supabaseClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+import { useGoogleDrivePicker } from '@/lib/useGoogleDrivePicker';
 
 interface MediaFormProps {
   item?: MediaItem;
@@ -18,7 +13,7 @@ interface MediaFormProps {
 
 export default function MediaForm({ item, mode }: MediaFormProps) {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { openPicker } = useGoogleDrivePicker();
 
   const [type, setType] = useState<MediaType>(item?.type || 'book');
   const [title, setTitle] = useState(item?.title || '');
@@ -30,45 +25,21 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
   const [notes, setNotes] = useState(item?.notes || '');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showLinkInput, setShowLinkInput] = useState(false);
   const [error, setError] = useState('');
 
-  async function handleUploadPdf(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== 'application/pdf') {
-      setError('Only PDF files are allowed');
-      return;
-    }
-
+  function handleDrivePicker() {
     setUploading(true);
     setError('');
-
-    try {
-      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-
-      const { error: uploadError } = await supabaseClient.storage
-        .from('pdfs')
-        .upload(fileName, file, {
-          contentType: 'application/pdf',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        setError(uploadError.message);
-        return;
-      }
-
-      const { data: urlData } = supabaseClient.storage
-        .from('pdfs')
-        .getPublicUrl(fileName);
-
-      setPdfUrl(urlData.publicUrl);
-    } catch {
-      setError('Upload failed');
-    } finally {
+    openPicker((result) => {
       setUploading(false);
-    }
+      if (result) {
+        setPdfUrl(result.url);
+        if (!title && result.name) {
+          setTitle(result.name.replace(/\.pdf$/i, ''));
+        }
+      }
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -205,44 +176,60 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
             </div>
           </div>
 
-          {/* PDF Upload */}
+          {/* PDF - Google Drive or Link */}
           <div>
             <label className={labelClass}>PDF</label>
             {pdfUrl ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-green-600 truncate flex-1">PDF attached</span>
-                <button
-                  type="button"
-                  onClick={() => setPdfUrl('')}
-                  className="text-red-500 text-xs hover:underline"
-                >
-                  Remove
-                </button>
+              <div className="bg-green-50 rounded-xl p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <LinkIcon size={14} className="text-green-600" />
+                    </div>
+                    <span className="text-sm font-medium text-green-700 truncate">PDF linked</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPdfUrl('')}
+                    className="text-red-500 text-xs font-medium hover:underline flex-shrink-0 ml-2"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={pdfUrl}
-                  onChange={(e) => setPdfUrl(e.target.value)}
-                  placeholder="Paste PDF link..."
-                  className={`${inputClass} flex-1`}
-                />
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDrivePicker}
+                    disabled={uploading}
+                    className="flex-1 py-3 rounded-xl bg-blue-50 text-blue-700 font-medium text-sm hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 border border-blue-200"
+                  >
+                    {uploading ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Upload size={16} />
+                    )}
+                    {uploading ? 'Opening Drive...' : 'Upload to Google Drive'}
+                  </button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="px-3 py-2.5 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                  onClick={() => setShowLinkInput(!showLinkInput)}
+                  className="text-xs text-gray-500 hover:text-gray-700"
                 >
-                  {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                  Or paste a link manually
                 </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleUploadPdf}
-                  className="hidden"
-                />
+                {showLinkInput && (
+                  <input
+                    type="url"
+                    value={pdfUrl}
+                    onChange={(e) => setPdfUrl(e.target.value)}
+                    placeholder="Paste PDF link (Google Drive, Dropbox, etc.)..."
+                    className={inputClass}
+                  />
+                )}
               </div>
             )}
           </div>

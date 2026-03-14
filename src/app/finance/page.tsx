@@ -8,6 +8,8 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import ExpenseCard from '@/components/finance/ExpenseCard';
 import ExpenseSummary from '@/components/finance/ExpenseSummary';
 import DateRangeToggle from '@/components/finance/DateRangeToggle';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import Toast from '@/components/ui/Toast';
 
 interface Summary {
   total: number;
@@ -19,6 +21,8 @@ export default function FinancePage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, by_category: [] });
   const [loading, setLoading] = useState(true);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const fetchData = useCallback(async (p: string) => {
     setLoading(true);
@@ -43,12 +47,20 @@ export default function FinancePage() {
   }, [period, fetchData]);
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this expense?')) return;
+    setDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return;
     try {
-      await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+      await fetch(`/api/expenses/${deleteId}`, { method: 'DELETE' });
+      setToast({ message: 'Expense deleted', type: 'success' });
       fetchData(period);
     } catch (err) {
       console.error(err);
+      setToast({ message: 'Failed to delete', type: 'error' });
+    } finally {
+      setDeleteId(null);
     }
   }
 
@@ -115,6 +127,18 @@ export default function FinancePage() {
           ))
         )}
       </div>
+      {deleteId && (
+        <ConfirmModal
+          title="Delete Expense"
+          message="Are you sure you want to delete this expense?"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteId(null)}
+        />
+      )}
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

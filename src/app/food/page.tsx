@@ -7,6 +7,8 @@ import { FoodLog } from '@/lib/types';
 import { formatDate, getTodayString } from '@/lib/utils';
 import CalorieProgress from '@/components/food/CalorieProgress';
 import MealSection from '@/components/food/MealSection';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import Toast from '@/components/ui/Toast';
 
 interface FoodSummary {
   total_calories: number;
@@ -20,6 +22,8 @@ export default function FoodPage() {
   const [foods, setFoods] = useState<FoodLog[]>([]);
   const [summary, setSummary] = useState<FoodSummary>({ total_calories: 0, target: 2000 });
   const [loading, setLoading] = useState(true);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const fetchData = useCallback(async (d: string) => {
     setLoading(true);
@@ -50,12 +54,20 @@ export default function FoodPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this entry?')) return;
+    setDeleteId(id);
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return;
     try {
-      await fetch(`/api/food/${id}`, { method: 'DELETE' });
+      await fetch(`/api/food/${deleteId}`, { method: 'DELETE' });
+      setToast({ message: 'Food entry deleted', type: 'success' });
       fetchData(date);
     } catch (err) {
       console.error(err);
+      setToast({ message: 'Failed to delete', type: 'error' });
+    } finally {
+      setDeleteId(null);
     }
   }
 
@@ -131,6 +143,18 @@ export default function FoodPage() {
           ))
         )}
       </div>
+      {deleteId && (
+        <ConfirmModal
+          title="Delete Entry"
+          message="Are you sure you want to delete this food entry?"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteId(null)}
+        />
+      )}
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

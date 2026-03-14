@@ -9,6 +9,8 @@ import { getYouTubeEmbedUrl } from '@/lib/utils';
 import MediaForm from '@/components/media/MediaForm';
 import ProgressBar from '@/components/media/ProgressBar';
 import StatusBadge from '@/components/media/StatusBadge';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import Toast from '@/components/ui/Toast';
 
 export default function MediaDetailPage() {
   const params = useParams();
@@ -17,6 +19,8 @@ export default function MediaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     async function fetchItem() {
@@ -35,14 +39,22 @@ export default function MediaDetailPage() {
   }, [params.id]);
 
   async function handleDelete() {
-    if (!confirm('Delete this item?')) return;
+    setShowConfirm(true);
+  }
+
+  async function confirmDelete() {
+    setShowConfirm(false);
     setDeleting(true);
     try {
       await fetch(`/api/media/${params.id}`, { method: 'DELETE' });
-      router.push('/media');
-      router.refresh();
+      setToast({ message: 'Item deleted', type: 'success' });
+      setTimeout(() => {
+        router.push('/media');
+        router.refresh();
+      }, 500);
     } catch {
       setDeleting(false);
+      setToast({ message: 'Failed to delete', type: 'error' });
     }
   }
 
@@ -162,6 +174,19 @@ export default function MediaDetailPage() {
           {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
         </button>
       </div>
+
+      {showConfirm && (
+        <ConfirmModal
+          title="Delete Item"
+          message="Are you sure you want to delete this item? This cannot be undone."
+          onConfirm={confirmDelete}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

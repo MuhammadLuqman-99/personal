@@ -2,8 +2,9 @@
 
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Loader2, Link as LinkIcon } from 'lucide-react';
+import { Upload, Loader2, Link as LinkIcon, HardDrive } from 'lucide-react';
 import { MediaItem, MediaType, MediaStatus } from '@/lib/types';
+import { useGoogleDrivePicker } from '@/lib/useGoogleDrivePicker';
 
 interface MediaFormProps {
   item?: MediaItem;
@@ -13,6 +14,7 @@ interface MediaFormProps {
 export default function MediaForm({ item, mode }: MediaFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { openPicker } = useGoogleDrivePicker();
 
   const [type, setType] = useState<MediaType>(item?.type || 'book');
   const [title, setTitle] = useState(item?.title || '');
@@ -70,6 +72,20 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  }
+
+  function handleDrivePicker() {
+    setUploading(true);
+    setError('');
+    openPicker((result) => {
+      setUploading(false);
+      if (result) {
+        setPdfUrl(result.url);
+        if (!title && result.name) {
+          setTitle(result.name.replace(/\.pdf$/i, ''));
+        }
+      }
+    });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -229,18 +245,30 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
               </div>
             ) : (
               <div className="space-y-2">
+                {/* Google Drive - 15GB free */}
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={handleDrivePicker}
                   disabled={uploading}
                   className="w-full py-3 rounded-xl bg-blue-50 text-blue-700 font-medium text-sm hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 border border-blue-200"
                 >
                   {uploading ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <Upload size={16} />
+                    <HardDrive size={16} />
                   )}
-                  {uploading ? 'Uploading...' : 'Upload PDF'}
+                  {uploading ? 'Loading...' : 'Google Drive (15GB)'}
+                </button>
+
+                {/* Direct upload - Supabase 1GB */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full py-2.5 rounded-xl bg-gray-50 text-gray-600 font-medium text-sm hover:bg-gray-100 transition-colors flex items-center justify-center gap-2 border border-gray-200"
+                >
+                  <Upload size={14} />
+                  Direct Upload
                 </button>
                 <input
                   ref={fileInputRef}
@@ -249,6 +277,7 @@ export default function MediaForm({ item, mode }: MediaFormProps) {
                   onChange={handleFileUpload}
                   className="hidden"
                 />
+
                 <button
                   type="button"
                   onClick={() => setShowLinkInput(!showLinkInput)}

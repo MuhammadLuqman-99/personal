@@ -1,28 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { google } from 'googleapis';
-import { Readable } from 'stream';
+import { createClient } from '@supabase/supabase-js';
 
-function getAuth() {
-  let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '';
-  // Handle both escaped \n and real newlines
-  if (privateKey.includes('\\n')) {
-    privateKey = privateKey.replace(/\\n/g, '\n');
-  }
-  // Remove surrounding quotes if present
-  if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-    privateKey = privateKey.slice(1, -1).replace(/\\n/g, '\n');
-  }
-
-  const credentials = {
-    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
-    private_key: privateKey,
-  };
-
-  return new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
-  });
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,49 +24,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 400 });
     }
 
-    const auth = getAuth();
-    const drive = google.drive({ version: 'v3', auth });
-
-    // Convert file to buffer then stream
+    const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const buffer = Buffer.from(await file.arrayBuffer());
-    const stream = new Readable();
-    stream.push(buffer);
-    stream.push(null);
 
-    // Upload to Google Drive
-    const driveFile = await drive.files.create({
-      requestBody: {
-        name: file.name,
-        mimeType: 'application/pdf',
-      },
-      media: {
-        mimeType: 'application/pdf',
-        body: stream,
-      },
-      fields: 'id,name,webViewLink',
-    });
+    const { error: uploadError } = await supabase.storage
+      .from('pdfs')
+      .upload(fileName, buffer, {
+        contentType: 'application/pdf',
+        upsert: false,
+      });
 
-    const fileId = driveFile.data.id;
+    if (uploadError) {
+      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    }
 
-    // Make publicly readable
-    await drive.permissions.create({
-      fileId: fileId!,
-      requestBody: {
-        role: 'reader',
-        type: 'anyone',
-      },
-    });
-
-    const viewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+    const { data: urlData } = supabase.storage
+      .from('pdfs')
+      .getPublicUrl(fileName);
 
     return NextResponse.json({
-      url: viewUrl,
-      name: driveFile.data.name,
-      fileId,
+      url: urlData.publicUrl,
+      name: file.name,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Drive upload error:', message);
     return NextResponse.json({ error: 'Upload failed', detail: message }, { status: 500 });
   }
 }

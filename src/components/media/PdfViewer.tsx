@@ -22,13 +22,6 @@ function getGoogleDriveEmbedUrl(url: string) {
   return url;
 }
 
-function getGoogleDriveDirectUrl(url: string) {
-  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) {
-    return `https://www.googleapis.com/drive/v3/files/${match[1]}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`;
-  }
-  return url;
-}
 
 export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

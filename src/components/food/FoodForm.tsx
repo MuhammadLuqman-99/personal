@@ -93,8 +93,8 @@ export default function FoodForm() {
 
   function selectFood(food: FoodResult) {
     const name = food.brand ? `${food.name} (${food.brand})` : food.name;
-    setMealName(name);
     setSearchQuery(name);
+    setMealName(name);
 
     const cal = food.calories_per_serving || food.calories_per_100g;
     if (cal > 0) setCalories(cal.toString());
@@ -118,7 +118,7 @@ export default function FoodForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const finalName = mealName.trim() || searchQuery.trim();
+    const finalName = searchQuery.trim();
     if (!finalName) {
       setError('Enter a meal name');
       return;
@@ -162,7 +162,6 @@ export default function FoodForm() {
 
   const inputClass =
     'w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const autoFilled = mealName ? <span className="text-green-600 text-xs">(auto-filled)</span> : null;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -194,10 +193,10 @@ export default function FoodForm() {
         </div>
       </div>
 
-      {/* Food Search */}
+      {/* Food Search & Meal Name */}
       <div className="relative" ref={resultsRef}>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Search Food
+          Meal Name {mealName && <span className="text-green-600 text-xs">(from search)</span>}
         </label>
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -205,18 +204,21 @@ export default function FoodForm() {
             type="text"
             value={searchQuery}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setMealName('');
+              const val = e.target.value;
+              setSearchQuery(val);
+              setMealName(val);
             }}
             onFocus={() => {
               if (searchResults.length > 0) setShowResults(true);
             }}
-            placeholder="Search food... e.g. nasi lemak, chicken rice"
-            className={`${inputClass} pl-9 pr-9`}
+            placeholder="Search or type food name..."
+            className={`${inputClass} pl-9 ${searchQuery ? 'pr-9' : ''}`}
+            required
           />
-          {searchQuery && (
+          {searchQuery.length > 0 && (
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={clearSearch}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
@@ -266,28 +268,10 @@ export default function FoodForm() {
         )}
       </div>
 
-      {/* Meal Name */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Meal Name {autoFilled}
-        </label>
-        <input
-          type="text"
-          value={mealName || searchQuery}
-          onChange={(e) => {
-            setMealName(e.target.value);
-            if (!searchQuery) setSearchQuery(e.target.value);
-          }}
-          placeholder="e.g. Nasi Lemak, Roti Canai..."
-          className={inputClass}
-          required
-        />
-      </div>
-
       {/* Calories */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Calories (kcal) {autoFilled}
+          Calories (kcal) {mealName && <span className="text-green-600 text-xs">(auto-filled)</span>}
         </label>
         <input
           type="number"
@@ -303,7 +287,7 @@ export default function FoodForm() {
       {/* Macros */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Macros (per serving) {autoFilled}
+          Macros (per serving) {mealName && <span className="text-green-600 text-xs">(auto-filled)</span>}
         </label>
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-blue-50 rounded-xl p-3">

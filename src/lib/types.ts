@@ -73,6 +73,9 @@ export interface FoodLog {
   id: string;
   meal_name: string;
   calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
   meal_type: MealType;
   date: string;
   created_at: string;
@@ -82,6 +85,9 @@ export interface FoodLog {
 export interface CreateFoodLogInput {
   meal_name: string;
   calories: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
   meal_type: MealType;
   date?: string;
 }
@@ -89,6 +95,9 @@ export interface CreateFoodLogInput {
 export interface UpdateFoodLogInput {
   meal_name?: string;
   calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
   meal_type?: MealType;
   date?: string;
 }

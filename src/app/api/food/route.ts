@@ -38,6 +38,9 @@ export async function POST(request: NextRequest) {
     .insert({
       meal_name: body.meal_name,
       calories: body.calories,
+      protein: body.protein || 0,
+      carbs: body.carbs || 0,
+      fat: body.fat || 0,
       meal_type: body.meal_type,
       date: body.date || new Date().toISOString().split('T')[0],
     })

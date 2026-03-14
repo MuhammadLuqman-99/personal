@@ -13,6 +13,13 @@ interface USDAFood {
   servingSizeUnit?: string;
 }
 
+function getNutrient(food: USDAFood, name: string): number {
+  const n = food.foodNutrients.find(
+    (n) => n.nutrientName === name && n.unitName !== 'MG'
+  );
+  return Math.round((n?.value || 0) * 10) / 10;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
@@ -36,10 +43,10 @@ export async function GET(request: NextRequest) {
     const foods = (data.foods || []) as USDAFood[];
 
     const results = foods.map((f) => {
-      const energyNutrient = f.foodNutrients.find(
-        (n) => n.nutrientName === 'Energy' && n.unitName === 'KCAL'
-      );
-      const calories = Math.round(energyNutrient?.value || 0);
+      const calories = Math.round(getNutrient(f, 'Energy'));
+      const protein = getNutrient(f, 'Protein');
+      const carbs = getNutrient(f, 'Carbohydrate, by difference');
+      const fat = getNutrient(f, 'Total lipid (fat)');
       const brand = f.brandName || f.brandOwner || '';
       const serving = f.servingSize
         ? `${f.servingSize}${f.servingSizeUnit || 'g'}`
@@ -50,6 +57,9 @@ export async function GET(request: NextRequest) {
         brand,
         calories_per_100g: calories,
         calories_per_serving: calories,
+        protein,
+        carbs,
+        fat,
         serving_size: serving,
         image: '',
       };

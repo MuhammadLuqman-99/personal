@@ -12,6 +12,9 @@ import Toast from '@/components/ui/Toast';
 
 interface FoodSummary {
   total_calories: number;
+  total_protein: number;
+  total_carbs: number;
+  total_fat: number;
   target: number;
 }
 
@@ -20,7 +23,7 @@ const MEAL_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 export default function FoodPage() {
   const [date, setDate] = useState(getTodayString());
   const [foods, setFoods] = useState<FoodLog[]>([]);
-  const [summary, setSummary] = useState<FoodSummary>({ total_calories: 0, target: 2000 });
+  const [summary, setSummary] = useState<FoodSummary>({ total_calories: 0, total_protein: 0, total_carbs: 0, total_fat: 0, target: 2000 });
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -117,7 +120,13 @@ export default function FoodPage() {
 
       {/* Calorie Progress */}
       <div className="mt-4">
-        <CalorieProgress consumed={summary.total_calories} target={summary.target} />
+        <CalorieProgress
+          consumed={summary.total_calories}
+          target={summary.target}
+          protein={summary.total_protein}
+          carbs={summary.total_carbs}
+          fat={summary.total_fat}
+        />
       </div>
 
       {/* Meals */}

@@ -11,6 +11,9 @@ interface FoodResult {
   brand: string;
   calories_per_100g: number;
   calories_per_serving: number;
+  protein: number;
+  carbs: number;
+  fat: number;
   serving_size: string;
   image: string;
 }
@@ -26,6 +29,9 @@ export default function FoodForm() {
   const router = useRouter();
   const [mealName, setMealName] = useState('');
   const [calories, setCalories] = useState('');
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
   const [mealType, setMealType] = useState<MealType>('breakfast');
   const [date, setDate] = useState(getTodayString());
   const [loading, setLoading] = useState(false);
@@ -90,11 +96,11 @@ export default function FoodForm() {
     setMealName(name);
     setSearchQuery(name);
 
-    // Use per-serving calories if available, otherwise per-100g
     const cal = food.calories_per_serving || food.calories_per_100g;
-    if (cal > 0) {
-      setCalories(cal.toString());
-    }
+    if (cal > 0) setCalories(cal.toString());
+    if (food.protein > 0) setProtein(food.protein.toString());
+    if (food.carbs > 0) setCarbs(food.carbs.toString());
+    if (food.fat > 0) setFat(food.fat.toString());
 
     setShowResults(false);
   }
@@ -103,6 +109,9 @@ export default function FoodForm() {
     setSearchQuery('');
     setMealName('');
     setCalories('');
+    setProtein('');
+    setCarbs('');
+    setFat('');
     setSearchResults([]);
     setShowResults(false);
   }
@@ -129,6 +138,9 @@ export default function FoodForm() {
         body: JSON.stringify({
           meal_name: finalName,
           calories: parseInt(calories),
+          protein: protein ? parseFloat(protein) : 0,
+          carbs: carbs ? parseFloat(carbs) : 0,
+          fat: fat ? parseFloat(fat) : 0,
           meal_type: mealType,
           date,
         }),
@@ -150,6 +162,7 @@ export default function FoodForm() {
 
   const inputClass =
     'w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const autoFilled = mealName ? <span className="text-green-600 text-xs">(auto-filled)</span> : null;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -217,12 +230,9 @@ export default function FoodForm() {
 
         {/* Search Results Dropdown */}
         {showResults && searchResults.length > 0 && (
-          <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-lg max-h-60 overflow-y-auto">
+          <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-lg max-h-72 overflow-y-auto">
             {searchResults.map((food, i) => {
               const cal = food.calories_per_serving || food.calories_per_100g;
-              const calLabel = food.calories_per_serving
-                ? `${cal} kcal/serving`
-                : `${cal} kcal/100g`;
               return (
                 <button
                   key={i}
@@ -230,25 +240,16 @@ export default function FoodForm() {
                   onClick={() => selectFood(food)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left border-b border-gray-100 last:border-0"
                 >
-                  {food.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={food.image}
-                      alt=""
-                      className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0 text-lg">
-                      🍽️
-                    </div>
-                  )}
+                  <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0 text-lg">
+                    🍽️
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{food.name}</p>
-                    <div className="flex items-center gap-2">
-                      {food.brand && (
-                        <span className="text-xs text-gray-500 truncate">{food.brand}</span>
-                      )}
-                      <span className="text-xs font-medium text-orange-600">{calLabel}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-medium text-orange-600">{cal} kcal</span>
+                      <span className="text-[10px] text-gray-400">
+                        P:{food.protein}g C:{food.carbs}g F:{food.fat}g
+                      </span>
                     </div>
                   </div>
                 </button>
@@ -265,10 +266,10 @@ export default function FoodForm() {
         )}
       </div>
 
-      {/* Meal Name (manual or from search) */}
+      {/* Meal Name */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Meal Name {mealName && <span className="text-green-600 text-xs">(auto-filled)</span>}
+          Meal Name {autoFilled}
         </label>
         <input
           type="text"
@@ -286,7 +287,7 @@ export default function FoodForm() {
       {/* Calories */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Calories (kcal) {calories && mealName && <span className="text-green-600 text-xs">(auto-filled)</span>}
+          Calories (kcal) {autoFilled}
         </label>
         <input
           type="number"
@@ -297,6 +298,60 @@ export default function FoodForm() {
           className={`${inputClass} text-xl font-bold text-center`}
           required
         />
+      </div>
+
+      {/* Macros */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Macros (per serving) {autoFilled}
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-blue-50 rounded-xl p-3">
+            <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wide mb-1">Protein</p>
+            <div className="flex items-baseline gap-0.5">
+              <input
+                type="number"
+                value={protein}
+                onChange={(e) => setProtein(e.target.value)}
+                placeholder="0"
+                min="0"
+                step="0.1"
+                className="w-full bg-transparent text-lg font-bold text-gray-900 focus:outline-none"
+              />
+              <span className="text-xs text-gray-400">g</span>
+            </div>
+          </div>
+          <div className="bg-yellow-50 rounded-xl p-3">
+            <p className="text-[10px] font-medium text-yellow-600 uppercase tracking-wide mb-1">Carbs</p>
+            <div className="flex items-baseline gap-0.5">
+              <input
+                type="number"
+                value={carbs}
+                onChange={(e) => setCarbs(e.target.value)}
+                placeholder="0"
+                min="0"
+                step="0.1"
+                className="w-full bg-transparent text-lg font-bold text-gray-900 focus:outline-none"
+              />
+              <span className="text-xs text-gray-400">g</span>
+            </div>
+          </div>
+          <div className="bg-red-50 rounded-xl p-3">
+            <p className="text-[10px] font-medium text-red-500 uppercase tracking-wide mb-1">Fat</p>
+            <div className="flex items-baseline gap-0.5">
+              <input
+                type="number"
+                value={fat}
+                onChange={(e) => setFat(e.target.value)}
+                placeholder="0"
+                min="0"
+                step="0.1"
+                className="w-full bg-transparent text-lg font-bold text-gray-900 focus:outline-none"
+              />
+              <span className="text-xs text-gray-400">g</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Date */}

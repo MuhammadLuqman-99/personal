@@ -65,6 +65,9 @@ export async function GET() {
     const thisMonthFood = thisMonthFoodRes.data || [];
 
     const todayCalories = todayFood.reduce((s, f) => s + f.calories, 0);
+    const todayProtein = todayFood.reduce((s, f) => s + Number(f.protein || 0), 0);
+    const todayCarbs = todayFood.reduce((s, f) => s + Number(f.carbs || 0), 0);
+    const todayFat = todayFood.reduce((s, f) => s + Number(f.fat || 0), 0);
 
     // Most eaten food this month
     const foodCounts: Record<string, { count: number; totalCal: number }> = {};
@@ -100,6 +103,9 @@ export async function GET() {
       },
       food: {
         todayCalories,
+        todayProtein: Math.round(todayProtein * 10) / 10,
+        todayCarbs: Math.round(todayCarbs * 10) / 10,
+        todayFat: Math.round(todayFat * 10) / 10,
         avgDailyCalories,
         topFoods,
         target: 2000,

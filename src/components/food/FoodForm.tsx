@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Search, X } from 'lucide-react';
+import { Loader2, Search, X, BookmarkPlus, Check } from 'lucide-react';
 import { MealType } from '@/lib/types';
 import { getTodayString } from '@/lib/utils';
 
@@ -14,8 +14,16 @@ interface FoodResult {
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
+  sugar?: number;
+  sodium?: number;
+  fat_saturated?: number;
+  potassium?: number;
+  cholesterol?: number;
   serving_size: string;
   image: string;
+  is_custom?: boolean;
+  custom_food_id?: string | null;
 }
 
 const mealTypes: { value: MealType; label: string; emoji: string }[] = [
@@ -32,6 +40,9 @@ export default function FoodForm() {
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
+  const [fiber, setFiber] = useState('');
+  const [sugar, setSugar] = useState('');
+  const [sodium, setSodium] = useState('');
   const [mealType, setMealType] = useState<MealType>('breakfast');
   const [date, setDate] = useState(getTodayString());
   const [loading, setLoading] = useState(false);
@@ -44,6 +55,11 @@ export default function FoodForm() {
   const [showResults, setShowResults] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Save as custom food state
+  const [savingCustom, setSavingCustom] = useState(false);
+  const [savedCustom, setSavedCustom] = useState(false);
+  const [selectedFromSearch, setSelectedFromSearch] = useState(false);
 
   // Debounced search
   useEffect(() => {
@@ -101,7 +117,12 @@ export default function FoodForm() {
     if (food.protein > 0) setProtein(food.protein.toString());
     if (food.carbs > 0) setCarbs(food.carbs.toString());
     if (food.fat > 0) setFat(food.fat.toString());
+    if (food.fiber && food.fiber > 0) setFiber(food.fiber.toString());
+    if (food.sugar && food.sugar > 0) setSugar(food.sugar.toString());
+    if (food.sodium && food.sodium > 0) setSodium(food.sodium.toString());
 
+    setSelectedFromSearch(true);
+    setSavedCustom(!!food.is_custom);
     setShowResults(false);
   }
 
@@ -112,8 +133,41 @@ export default function FoodForm() {
     setProtein('');
     setCarbs('');
     setFat('');
+    setFiber('');
+    setSugar('');
+    setSodium('');
     setSearchResults([]);
     setShowResults(false);
+    setSelectedFromSearch(false);
+    setSavedCustom(false);
+  }
+
+  async function handleSaveAsCustom() {
+    if (!mealName || !calories) return;
+    setSavingCustom(true);
+    try {
+      const res = await fetch('/api/custom-foods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: mealName,
+          calories: parseInt(calories),
+          protein_g: protein ? parseFloat(protein) : null,
+          carbs_g: carbs ? parseFloat(carbs) : null,
+          fat_total_g: fat ? parseFloat(fat) : null,
+          fiber_g: fiber ? parseFloat(fiber) : null,
+          sugar_g: sugar ? parseFloat(sugar) : null,
+          sodium_mg: sodium ? parseFloat(sodium) : null,
+        }),
+      });
+      if (res.ok) {
+        setSavedCustom(true);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSavingCustom(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -141,6 +195,9 @@ export default function FoodForm() {
           protein: protein ? parseFloat(protein) : 0,
           carbs: carbs ? parseFloat(carbs) : 0,
           fat: fat ? parseFloat(fat) : 0,
+          fiber: fiber ? parseFloat(fiber) : null,
+          sugar: sugar ? parseFloat(sugar) : null,
+          sodium: sodium ? parseFloat(sodium) : null,
           meal_type: mealType,
           date,
         }),
@@ -162,6 +219,8 @@ export default function FoodForm() {
 
   const inputClass =
     'w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+
+  const hasManualEntry = !!(mealName && calories && !savedCustom);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -196,7 +255,10 @@ export default function FoodForm() {
       {/* Food Search & Meal Name */}
       <div className="relative" ref={resultsRef}>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Meal Name {mealName && <span className="text-green-600 text-xs">(from search)</span>}
+          Meal Name{' '}
+          {selectedFromSearch && (
+            <span className="text-green-600 text-xs">(from search)</span>
+          )}
         </label>
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -207,19 +269,28 @@ export default function FoodForm() {
               const val = e.target.value;
               setSearchQuery(val);
               setMealName(val);
+              if (selectedFromSearch) {
+                setSelectedFromSearch(false);
+                setSavedCustom(false);
+              }
             }}
             onFocus={() => {
               if (searchResults.length > 0) setShowResults(true);
             }}
             placeholder="Search or type food name..."
             className={`${inputClass} pl-9 ${searchQuery ? 'pr-9' : ''}`}
+            autoComplete="off"
             required
           />
           {searchQuery.length > 0 && (
             <button
               type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={clearSearch}
+              tabIndex={-1}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                clearSearch();
+              }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
               <X size={16} />
@@ -246,7 +317,14 @@ export default function FoodForm() {
                     🍽️
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{food.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-gray-900 truncate">{food.name}</p>
+                      {food.is_custom && (
+                        <span className="flex-shrink-0 text-[10px] font-medium bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                          Saved
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-medium text-orange-600">{cal} kcal</span>
                       <span className="text-[10px] text-gray-400">
@@ -271,7 +349,8 @@ export default function FoodForm() {
       {/* Calories */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Calories (kcal) {mealName && <span className="text-green-600 text-xs">(auto-filled)</span>}
+          Calories (kcal){' '}
+          {selectedFromSearch && <span className="text-green-600 text-xs">(auto-filled)</span>}
         </label>
         <input
           type="number"
@@ -287,7 +366,8 @@ export default function FoodForm() {
       {/* Macros */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Macros (per serving) {mealName && <span className="text-green-600 text-xs">(auto-filled)</span>}
+          Macros (per serving){' '}
+          {selectedFromSearch && <span className="text-green-600 text-xs">(auto-filled)</span>}
         </label>
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-blue-50 rounded-xl p-3">
@@ -337,6 +417,81 @@ export default function FoodForm() {
           </div>
         </div>
       </div>
+
+      {/* Extra Nutrients */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Extra Nutrients (optional)</label>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-green-50 rounded-xl p-3">
+            <p className="text-[10px] font-medium text-green-600 uppercase tracking-wide mb-1">Fiber</p>
+            <div className="flex items-baseline gap-0.5">
+              <input
+                type="number"
+                value={fiber}
+                onChange={(e) => setFiber(e.target.value)}
+                placeholder="0"
+                min="0"
+                step="0.1"
+                className="w-full bg-transparent text-lg font-bold text-gray-900 focus:outline-none"
+              />
+              <span className="text-xs text-gray-400">g</span>
+            </div>
+          </div>
+          <div className="bg-pink-50 rounded-xl p-3">
+            <p className="text-[10px] font-medium text-pink-500 uppercase tracking-wide mb-1">Sugar</p>
+            <div className="flex items-baseline gap-0.5">
+              <input
+                type="number"
+                value={sugar}
+                onChange={(e) => setSugar(e.target.value)}
+                placeholder="0"
+                min="0"
+                step="0.1"
+                className="w-full bg-transparent text-lg font-bold text-gray-900 focus:outline-none"
+              />
+              <span className="text-xs text-gray-400">g</span>
+            </div>
+          </div>
+          <div className="bg-purple-50 rounded-xl p-3">
+            <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wide mb-1">Sodium</p>
+            <div className="flex items-baseline gap-0.5">
+              <input
+                type="number"
+                value={sodium}
+                onChange={(e) => setSodium(e.target.value)}
+                placeholder="0"
+                min="0"
+                step="0.1"
+                className="w-full bg-transparent text-lg font-bold text-gray-900 focus:outline-none"
+              />
+              <span className="text-xs text-gray-400">mg</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Save as Custom Food button */}
+      {hasManualEntry && (
+        <button
+          type="button"
+          onClick={handleSaveAsCustom}
+          disabled={savingCustom || savedCustom}
+          className={`w-full py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 border ${
+            savedCustom
+              ? 'bg-green-50 text-green-700 border-green-200'
+              : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+          } disabled:opacity-60`}
+        >
+          {savingCustom ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : savedCustom ? (
+            <Check size={15} />
+          ) : (
+            <BookmarkPlus size={15} />
+          )}
+          {savedCustom ? 'Saved to Custom Foods' : 'Save as Custom Food'}
+        </button>
+      )}
 
       {/* Date */}
       <div>

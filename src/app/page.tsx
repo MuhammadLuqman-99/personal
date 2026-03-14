@@ -26,6 +26,9 @@ interface DashboardData {
   };
   food: {
     todayCalories: number;
+    todayProtein: number;
+    todayCarbs: number;
+    todayFat: number;
     avgDailyCalories: number;
     topFoods: { name: string; count: number; avgCal: number }[];
     target: number;
@@ -240,6 +243,24 @@ export default function DashboardPage() {
                   <p className="text-[10px] text-gray-400 mt-2.5">This month</p>
                 </div>
               </div>
+
+              {/* Macros today */}
+              {(data.food.todayProtein > 0 || data.food.todayCarbs > 0 || data.food.todayFat > 0) && (
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="bg-blue-50 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-blue-600 font-medium uppercase">Protein</p>
+                    <p className="text-sm font-bold text-gray-900">{data.food.todayProtein}g</p>
+                  </div>
+                  <div className="bg-yellow-50 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-yellow-600 font-medium uppercase">Carbs</p>
+                    <p className="text-sm font-bold text-gray-900">{data.food.todayCarbs}g</p>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-red-500 font-medium uppercase">Fat</p>
+                    <p className="text-sm font-bold text-gray-900">{data.food.todayFat}g</p>
+                  </div>
+                </div>
+              )}
 
               {/* Top foods */}
               {data.food.topFoods.length > 0 && (

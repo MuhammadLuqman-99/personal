@@ -46,42 +46,14 @@ export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfVie
   useEffect(() => {
     let cancelled = false;
 
-    // Google Drive URLs - try direct URL first, fallback to iframe
+    // Google Drive URLs - always use iframe
     if (isGoogleDriveUrl(url)) {
-      const directUrl = getGoogleDriveDirectUrl(url);
-
-      async function loadGoogleDrivePdf() {
-        try {
-          setLoading(true);
-          setError('');
-
-          const pdfjsLib = await import('pdfjs-dist');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
-          const loadingTask = pdfjsLib.getDocument(directUrl);
-          const pdf = await loadingTask.promise;
-
-          if (cancelled) return;
-
-          pdfDocRef.current = pdf;
-          setTotalPages(pdf.numPages);
-          const startPage = Math.min(Math.max(1, initialPage), pdf.numPages);
-          setCurrentPage(startPage);
-          setLoading(false);
-        } catch {
-          // Direct URL failed, use iframe embed
-          if (!cancelled) {
-            setUseIframe(true);
-            setLoading(false);
-          }
-        }
-      }
-
-      loadGoogleDrivePdf();
-      return () => { cancelled = true; };
+      setUseIframe(true);
+      setLoading(false);
+      return;
     }
 
-    // Non-Google Drive URLs - load normally
+    // Non-Google Drive URLs - load with pdfjs
     async function loadPdf() {
       try {
         setLoading(true);

@@ -1,12 +1,33 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2, ExternalLink } from 'lucide-react';
 
 interface PdfViewerProps {
   url: string;
   initialPage?: number;
   onPageChange?: (page: number) => void;
+}
+
+function isGoogleDriveUrl(url: string) {
+  return url.includes('drive.google.com');
+}
+
+function getGoogleDriveEmbedUrl(url: string) {
+  // Extract file ID from various Google Drive URL formats
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return `https://drive.google.com/file/d/${match[1]}/preview`;
+  }
+  return url;
+}
+
+function getGoogleDriveDirectUrl(url: string) {
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return `https://www.googleapis.com/drive/v3/files/${match[1]}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`;
+  }
+  return url;
 }
 
 export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfViewerProps) {
@@ -19,11 +40,48 @@ export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfVie
   const [scale, setScale] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [useIframe, setUseIframe] = useState(false);
 
   // Load PDF document
   useEffect(() => {
     let cancelled = false;
 
+    // Google Drive URLs - try direct URL first, fallback to iframe
+    if (isGoogleDriveUrl(url)) {
+      const directUrl = getGoogleDriveDirectUrl(url);
+
+      async function loadGoogleDrivePdf() {
+        try {
+          setLoading(true);
+          setError('');
+
+          const pdfjsLib = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+          const loadingTask = pdfjsLib.getDocument(directUrl);
+          const pdf = await loadingTask.promise;
+
+          if (cancelled) return;
+
+          pdfDocRef.current = pdf;
+          setTotalPages(pdf.numPages);
+          const startPage = Math.min(Math.max(1, initialPage), pdf.numPages);
+          setCurrentPage(startPage);
+          setLoading(false);
+        } catch {
+          // Direct URL failed, use iframe embed
+          if (!cancelled) {
+            setUseIframe(true);
+            setLoading(false);
+          }
+        }
+      }
+
+      loadGoogleDrivePdf();
+      return () => { cancelled = true; };
+    }
+
+    // Non-Google Drive URLs - load normally
     async function loadPdf() {
       try {
         setLoading(true);
@@ -39,8 +97,6 @@ export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfVie
 
         pdfDocRef.current = pdf;
         setTotalPages(pdf.numPages);
-
-        // Clamp initial page
         const startPage = Math.min(Math.max(1, initialPage), pdf.numPages);
         setCurrentPage(startPage);
       } catch (err) {
@@ -67,14 +123,12 @@ export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfVie
       const page = await pdf.getPage(pageNum);
       const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
 
-      // Calculate scale to fit width
       const unscaledViewport = page.getViewport({ scale: 1 });
-      const fitScale = (containerWidth - 16) / unscaledViewport.width; // 16px padding
+      const fitScale = (containerWidth - 16) / unscaledViewport.width;
       const finalScale = fitScale * scale;
 
       const viewport = page.getViewport({ scale: finalScale });
 
-      // Account for device pixel ratio to prevent blur on high-DPI screens
       const dpr = window.devicePixelRatio || 1;
       canvas.height = viewport.height * dpr;
       canvas.width = viewport.width * dpr;
@@ -95,7 +149,6 @@ export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfVie
     }
   }, [scale]);
 
-  // Re-render when page or scale changes
   useEffect(() => {
     if (pdfDocRef.current && currentPage > 0) {
       renderPage(currentPage);
@@ -116,6 +169,33 @@ export default function PdfViewer({ url, initialPage = 1, onPageChange }: PdfVie
     return (
       <div className="flex-1 flex items-center justify-center text-red-500 text-sm">
         {error}
+      </div>
+    );
+  }
+
+  // Google Drive iframe fallback
+  if (useIframe) {
+    const embedUrl = getGoogleDriveEmbedUrl(url);
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
+          <span className="text-xs text-gray-500">Google Drive PDF</span>
+          <a
+            href={url.replace('/preview', '/view')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+          >
+            <ExternalLink size={12} />
+            Open in Drive
+          </a>
+        </div>
+        <iframe
+          src={embedUrl}
+          className="flex-1 w-full border-0"
+          allow="autoplay"
+          sandbox="allow-scripts allow-same-origin allow-popups"
+        />
       </div>
     );
   }

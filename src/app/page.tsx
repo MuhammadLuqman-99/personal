@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   BookOpen, Eye, Wallet, UtensilsCrossed, TrendingUp, TrendingDown,
-  Minus, ChevronRight, ChevronDown, Loader2, BookMarked, Video, X,
+  Minus, ChevronRight, ChevronDown, ChevronLeft, Loader2, BookMarked, Video, X, Calendar,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import QuickActions from '@/components/dashboard/QuickActions';
@@ -55,18 +55,24 @@ const ranges: { value: Range; label: string }[] = [
   { value: 'monthly', label: 'Monthly' },
 ];
 
+function getTodayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>('daily');
+  const [selectedDate, setSelectedDate] = useState(getTodayStr());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showMacroDetail, setShowMacroDetail] = useState(false);
 
-  const fetchData = useCallback(async (r: Range) => {
+  const fetchData = useCallback(async (r: Range, d: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/dashboard?range=${r}`);
-      const d = await res.json();
-      if (d.media) setData(d);
+      const res = await fetch(`/api/dashboard?range=${r}&date=${d}`);
+      const json = await res.json();
+      if (json.media) setData(json);
     } catch {
       // ignore
     } finally {
@@ -75,12 +81,21 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchData(range);
-  }, [range, fetchData]);
+    fetchData(range, selectedDate);
+  }, [range, selectedDate, fetchData]);
+
+  function navigateDate(delta: number) {
+    const d = new Date(selectedDate + 'T12:00:00');
+    if (range === 'daily') d.setDate(d.getDate() + delta);
+    else if (range === 'weekly') d.setDate(d.getDate() + delta * 7);
+    else d.setMonth(d.getMonth() + delta);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  }
 
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const isToday = selectedDate === getTodayStr();
 
   const spendDiff = data ? data.finance.currentSpent - data.finance.prevSpent : 0;
 
@@ -89,18 +104,10 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="mb-4">
         <h1 className="text-xl font-bold text-gray-900">{greeting}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {now.toLocaleDateString('en-MY', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </p>
       </div>
 
       {/* Range Filter */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-3">
         {ranges.map((r) => (
           <button
             key={r.value}
@@ -114,6 +121,61 @@ export default function DashboardPage() {
             {r.label}
           </button>
         ))}
+      </div>
+
+      {/* Date Navigation */}
+      <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-3 py-2.5 mb-4">
+        <button
+          onClick={() => navigateDate(-1)}
+          className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          <ChevronLeft size={20} className="text-gray-600" />
+        </button>
+
+        <div className="relative">
+          <button
+            onClick={() => setShowDatePicker(!showDatePicker)}
+            className="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Calendar size={14} className="text-blue-500" />
+            <span className="text-sm font-medium text-gray-900">
+              {data?.rangeLabel || selectedDate}
+            </span>
+          </button>
+          {showDatePicker && (
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-20 bg-white rounded-xl border border-gray-200 shadow-lg p-3">
+              <input
+                type={range === 'monthly' ? 'month' : 'date'}
+                value={range === 'monthly' ? selectedDate.slice(0, 7) : selectedDate}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (range === 'monthly') {
+                    setSelectedDate(val + '-01');
+                  } else {
+                    setSelectedDate(val);
+                  }
+                  setShowDatePicker(false);
+                }}
+                className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {!isToday && (
+                <button
+                  onClick={() => { setSelectedDate(getTodayStr()); setShowDatePicker(false); }}
+                  className="mt-2 w-full py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100"
+                >
+                  Go to Today
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={() => navigateDate(1)}
+          className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          <ChevronRight size={20} className="text-gray-600" />
+        </button>
       </div>
 
       {/* Quick Actions */}

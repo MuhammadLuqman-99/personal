@@ -1,48 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
 import supabase from '@/lib/supabase';
 
-function getDateRange(range: string) {
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
+function getDateRange(range: string, baseDate: string) {
+  const base = new Date(baseDate + 'T12:00:00');
+  const dateStr = base.toISOString().split('T')[0];
 
   if (range === 'weekly') {
-    const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 6);
-    return { start: weekAgo.toISOString().split('T')[0], end: today, days: 7, label: 'This Week' };
+    const weekStart = new Date(base);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
+    const startStr = weekStart.toISOString().split('T')[0];
+    const endStr = weekEnd.toISOString().split('T')[0];
+    const label = `${weekStart.toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })} - ${weekEnd.toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}`;
+    return { start: startStr, end: endStr, days: 7, label };
   }
 
   if (range === 'monthly') {
-    const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    return { start, end: today, days: now.getDate(), label: 'This Month' };
+    const year = base.getFullYear();
+    const month = base.getMonth();
+    const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month + 1, 0);
+    const end = lastDay.toISOString().split('T')[0];
+    const daysInMonth = lastDay.getDate();
+    const label = base.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' });
+    return { start, end, days: daysInMonth, label };
   }
 
-  // daily (default)
-  return { start: today, end: today, days: 1, label: 'Today' };
+  // daily
+  const label = base.toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  return { start: dateStr, end: dateStr, days: 1, label };
 }
 
-function getPreviousRange(range: string) {
-  const now = new Date();
+function getPreviousRange(range: string, baseDate: string) {
+  const base = new Date(baseDate + 'T12:00:00');
 
   if (range === 'weekly') {
-    const prevEnd = new Date(now);
-    prevEnd.setDate(prevEnd.getDate() - 7);
-    const prevStart = new Date(prevEnd);
-    prevStart.setDate(prevStart.getDate() - 6);
-    return { start: prevStart.toISOString().split('T')[0], end: prevEnd.toISOString().split('T')[0], label: 'Last Week' };
+    const prevWeekEnd = new Date(base);
+    prevWeekEnd.setDate(prevWeekEnd.getDate() - prevWeekEnd.getDay() + 1 - 1); // day before this Monday
+    const prevWeekStart = new Date(prevWeekEnd);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 6);
+    return { start: prevWeekStart.toISOString().split('T')[0], end: prevWeekEnd.toISOString().split('T')[0], label: 'Prev Week' };
   }
 
   if (range === 'monthly') {
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    const prevMonth = new Date(base.getFullYear(), base.getMonth() - 1, 1);
+    const prevMonthEnd = new Date(base.getFullYear(), base.getMonth(), 0);
     return {
-      start: `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}-01`,
-      end: lastMonthEnd.toISOString().split('T')[0],
-      label: 'Last Month',
+      start: `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}-01`,
+      end: prevMonthEnd.toISOString().split('T')[0],
+      label: prevMonth.toLocaleDateString('en-MY', { month: 'short' }),
     };
   }
 
-  // daily -> yesterday
-  const yesterday = new Date(now);
+  const yesterday = new Date(base);
   yesterday.setDate(yesterday.getDate() - 1);
   const y = yesterday.toISOString().split('T')[0];
   return { start: y, end: y, label: 'Yesterday' };
@@ -51,9 +62,10 @@ function getPreviousRange(range: string) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const range = searchParams.get('range') || 'daily';
+  const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
-  const current = getDateRange(range);
-  const previous = getPreviousRange(range);
+  const current = getDateRange(range, date);
+  const previous = getPreviousRange(range, date);
 
   try {
     const [
@@ -80,11 +92,9 @@ export async function GET(request: NextRequest) {
     // Expense stats
     const currentExpenses = currentExpRes.data || [];
     const prevExpenses = prevExpRes.data || [];
-
     const currentSpent = currentExpenses.reduce((s, e) => s + Number(e.amount), 0);
     const prevSpent = prevExpenses.reduce((s, e) => s + Number(e.amount), 0);
 
-    // Top spending category
     const catTotals: Record<string, number> = {};
     for (const e of currentExpenses) {
       catTotals[e.category] = (catTotals[e.category] || 0) + Number(e.amount);
@@ -93,15 +103,12 @@ export async function GET(request: NextRequest) {
 
     // Food stats
     const currentFood = currentFoodRes.data || [];
-
     const totalCalories = currentFood.reduce((s, f) => s + f.calories, 0);
     const totalProtein = currentFood.reduce((s, f) => s + Number(f.protein || 0), 0);
     const totalCarbs = currentFood.reduce((s, f) => s + Number(f.carbs || 0), 0);
     const totalFat = currentFood.reduce((s, f) => s + Number(f.fat || 0), 0);
-
     const avgDailyCalories = current.days > 0 ? Math.round(totalCalories / current.days) : 0;
 
-    // Most eaten food
     const foodCounts: Record<string, { count: number; totalCal: number }> = {};
     for (const f of currentFood) {
       const name = f.meal_name;
@@ -116,16 +123,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       range,
+      date,
       rangeLabel: current.label,
       prevLabel: previous.label,
-      media: {
-        totalBooks,
-        totalVideos,
-        booksReading,
-        booksCompleted,
-        videosWatched,
-        videosWatching,
-      },
+      media: { totalBooks, totalVideos, booksReading, booksCompleted, videosWatched, videosWatching },
       finance: {
         currentSpent,
         prevSpent,

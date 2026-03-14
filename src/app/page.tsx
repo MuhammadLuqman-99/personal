@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   BookOpen, Eye, Wallet, UtensilsCrossed, TrendingUp, TrendingDown,
@@ -9,7 +9,12 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import QuickActions from '@/components/dashboard/QuickActions';
 
+type Range = 'daily' | 'weekly' | 'monthly';
+
 interface DashboardData {
+  range: string;
+  rangeLabel: string;
+  prevLabel: string;
   media: {
     totalBooks: number;
     totalVideos: number;
@@ -19,17 +24,16 @@ interface DashboardData {
     videosWatching: number;
   };
   finance: {
-    todaySpent: number;
-    thisMonthSpent: number;
-    lastMonthSpent: number;
+    currentSpent: number;
+    prevSpent: number;
     topCategory: { name: string; amount: number } | null;
   };
   food: {
-    todayCalories: number;
-    todayProtein: number;
-    todayCarbs: number;
-    todayFat: number;
-    todayFoods: { name: string; calories: number; protein: number; carbs: number; fat: number; meal_type: string }[];
+    totalCalories: number;
+    totalProtein: number;
+    totalCarbs: number;
+    totalFat: number;
+    foods: { name: string; calories: number; protein: number; carbs: number; fat: number; meal_type: string }[];
     avgDailyCalories: number;
     topFoods: { name: string; count: number; avgCal: number }[];
     target: number;
@@ -45,39 +49,45 @@ const categoryLabels: Record<string, string> = {
   other: 'Other',
 };
 
+const ranges: { value: Range; label: string }[] = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+];
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<Range>('daily');
   const [showMacroDetail, setShowMacroDetail] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/dashboard')
-      .then((r) => r.json())
-      .then((d) => { if (d.media) setData(d); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  const fetchData = useCallback(async (r: Range) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/dashboard?range=${r}`);
+      const d = await res.json();
+      if (d.media) setData(d);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData(range);
+  }, [range, fetchData]);
 
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Loader2 size={24} className="animate-spin text-gray-400" />
-      </div>
-    );
-  }
-
-  const spendDiff = data
-    ? data.finance.thisMonthSpent - data.finance.lastMonthSpent
-    : 0;
+  const spendDiff = data ? data.finance.currentSpent - data.finance.prevSpent : 0;
 
   return (
     <div className="px-4 pt-6 pb-6">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-xl font-bold text-gray-900">{greeting}</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           {now.toLocaleDateString('en-MY', {
@@ -89,10 +99,31 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {/* Range Filter */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+        {ranges.map((r) => (
+          <button
+            key={r.value}
+            onClick={() => setRange(r.value)}
+            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
+              range === r.value
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+
       {/* Quick Actions */}
       <QuickActions />
 
-      {data && (
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 size={24} className="animate-spin text-gray-400" />
+        </div>
+      ) : data && (
         <>
           {/* ===== MEDIA SECTION ===== */}
           <Link href="/media" className="block mt-6">
@@ -108,7 +139,6 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                {/* Books */}
                 <div className="bg-purple-50 rounded-lg p-3">
                   <div className="flex items-center gap-1.5 mb-2">
                     <BookMarked size={14} className="text-purple-500" />
@@ -127,7 +157,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Videos */}
                 <div className="bg-blue-50 rounded-lg p-3">
                   <div className="flex items-center gap-1.5 mb-2">
                     <Video size={14} className="text-blue-500" />
@@ -162,25 +191,29 @@ export default function DashboardPage() {
                 <ChevronRight size={16} className="text-gray-400" />
               </div>
 
-              {/* Today & This Month */}
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-green-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500">Today</p>
+                  <p className="text-xs text-gray-500">{data.rangeLabel}</p>
                   <p className="text-xl font-bold text-gray-900 mt-0.5">
-                    {formatCurrency(data.finance.todaySpent)}
+                    {formatCurrency(data.finance.currentSpent)}
                   </p>
                 </div>
                 <div className="bg-green-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500">This Month</p>
+                  <p className="text-xs text-gray-500">Avg / day</p>
                   <p className="text-xl font-bold text-gray-900 mt-0.5">
-                    {formatCurrency(data.finance.thisMonthSpent)}
+                    {formatCurrency(
+                      range === 'daily'
+                        ? data.finance.currentSpent
+                        : range === 'weekly'
+                        ? Math.round(data.finance.currentSpent / 7)
+                        : Math.round(data.finance.currentSpent / new Date().getDate())
+                    )}
                   </p>
                 </div>
               </div>
 
-              {/* Last Month Comparison */}
               <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                <span className="text-xs text-gray-500">vs Last Month ({formatCurrency(data.finance.lastMonthSpent)})</span>
+                <span className="text-xs text-gray-500">vs {data.prevLabel} ({formatCurrency(data.finance.prevSpent)})</span>
                 <div className="flex items-center gap-1">
                   {spendDiff > 0 ? (
                     <TrendingUp size={14} className="text-red-500" />
@@ -195,7 +228,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Top category */}
               {data.finance.topCategory && (
                 <div className="mt-2 flex items-center justify-between text-xs">
                   <span className="text-gray-500">Most spent on</span>
@@ -220,23 +252,22 @@ export default function DashboardPage() {
                 <ChevronRight size={16} className="text-gray-400" />
               </div>
 
-              {/* Calories today - clickable */}
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); setShowMacroDetail(true); }}
-                  className="bg-orange-50 rounded-lg p-3 text-left hover:bg-orange-100 transition-colors relative"
+                  className="bg-orange-50 rounded-lg p-3 text-left hover:bg-orange-100 transition-colors"
                 >
-                  <p className="text-xs text-gray-500">Today</p>
+                  <p className="text-xs text-gray-500">{data.rangeLabel}</p>
                   <p className="text-xl font-bold text-gray-900 mt-0.5">
-                    {data.food.todayCalories.toLocaleString()} <span className="text-xs font-normal text-gray-400">kcal</span>
+                    {data.food.totalCalories.toLocaleString()} <span className="text-xs font-normal text-gray-400">kcal</span>
                   </p>
                   <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
                     <div
                       className={`h-1.5 rounded-full transition-all ${
-                        data.food.todayCalories > data.food.target ? 'bg-red-500' : 'bg-orange-500'
+                        data.food.totalCalories > data.food.target ? 'bg-red-500' : 'bg-orange-500'
                       }`}
-                      style={{ width: `${Math.min((data.food.todayCalories / data.food.target) * 100, 100)}%` }}
+                      style={{ width: `${Math.min((data.food.totalCalories / data.food.target) * 100, 100)}%` }}
                     />
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
@@ -245,28 +276,28 @@ export default function DashboardPage() {
                   </div>
                 </button>
                 <div className="bg-orange-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500">Daily Average</p>
+                  <p className="text-xs text-gray-500">Avg / day</p>
                   <p className="text-xl font-bold text-gray-900 mt-0.5">
                     {data.food.avgDailyCalories.toLocaleString()} <span className="text-xs font-normal text-gray-400">kcal</span>
                   </p>
-                  <p className="text-[10px] text-gray-400 mt-2.5">This month</p>
+                  <p className="text-[10px] text-gray-400 mt-2.5">{data.rangeLabel}</p>
                 </div>
               </div>
 
               {/* Macros summary */}
-              {(data.food.todayProtein > 0 || data.food.todayCarbs > 0 || data.food.todayFat > 0) && (
+              {(data.food.totalProtein > 0 || data.food.totalCarbs > 0 || data.food.totalFat > 0) && (
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <div className="bg-blue-50 rounded-lg p-2 text-center">
                     <p className="text-[10px] text-blue-600 font-medium uppercase">Protein</p>
-                    <p className="text-sm font-bold text-gray-900">{data.food.todayProtein}g</p>
+                    <p className="text-sm font-bold text-gray-900">{data.food.totalProtein}g</p>
                   </div>
                   <div className="bg-yellow-50 rounded-lg p-2 text-center">
                     <p className="text-[10px] text-yellow-600 font-medium uppercase">Carbs</p>
-                    <p className="text-sm font-bold text-gray-900">{data.food.todayCarbs}g</p>
+                    <p className="text-sm font-bold text-gray-900">{data.food.totalCarbs}g</p>
                   </div>
                   <div className="bg-red-50 rounded-lg p-2 text-center">
                     <p className="text-[10px] text-red-500 font-medium uppercase">Fat</p>
-                    <p className="text-sm font-bold text-gray-900">{data.food.todayFat}g</p>
+                    <p className="text-sm font-bold text-gray-900">{data.food.totalFat}g</p>
                   </div>
                 </div>
               )}
@@ -276,7 +307,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1">
                     <Eye size={12} />
-                    Most eaten this month
+                    Most eaten ({data.rangeLabel.toLowerCase()})
                   </p>
                   <div className="space-y-1.5">
                     {data.food.topFoods.slice(0, 3).map((food, i) => (
@@ -310,7 +341,7 @@ export default function DashboardPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Today&apos;s Nutrition</h3>
+              <h3 className="text-lg font-bold text-gray-900">{data.rangeLabel}&apos;s Nutrition</h3>
               <button
                 onClick={() => setShowMacroDetail(false)}
                 className="p-1.5 rounded-lg hover:bg-gray-100"
@@ -319,34 +350,32 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* Total Summary */}
             <div className="bg-orange-50 rounded-xl p-4 mb-4 text-center">
               <p className="text-3xl font-bold text-gray-900">
-                {data.food.todayCalories.toLocaleString()}
+                {data.food.totalCalories.toLocaleString()}
                 <span className="text-sm font-normal text-gray-400 ml-1">kcal</span>
               </p>
               <div className="mt-2 h-2.5 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${
-                    data.food.todayCalories > data.food.target ? 'bg-red-500' : 'bg-orange-500'
+                    data.food.totalCalories > data.food.target ? 'bg-red-500' : 'bg-orange-500'
                   }`}
-                  style={{ width: `${Math.min((data.food.todayCalories / data.food.target) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((data.food.totalCalories / data.food.target) * 100, 100)}%` }}
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">Target: {data.food.target.toLocaleString()} kcal</p>
             </div>
 
-            {/* Macro Bars */}
             <div className="grid grid-cols-3 gap-3 mb-4">
               {(() => {
-                const total = data.food.todayProtein + data.food.todayCarbs + data.food.todayFat;
-                const pPct = total > 0 ? Math.round((data.food.todayProtein / total) * 100) : 0;
-                const cPct = total > 0 ? Math.round((data.food.todayCarbs / total) * 100) : 0;
-                const fPct = total > 0 ? Math.round((data.food.todayFat / total) * 100) : 0;
+                const total = data.food.totalProtein + data.food.totalCarbs + data.food.totalFat;
+                const pPct = total > 0 ? Math.round((data.food.totalProtein / total) * 100) : 0;
+                const cPct = total > 0 ? Math.round((data.food.totalCarbs / total) * 100) : 0;
+                const fPct = total > 0 ? Math.round((data.food.totalFat / total) * 100) : 0;
                 return (
                   <>
                     <div className="bg-blue-50 rounded-xl p-3 text-center">
-                      <p className="text-2xl font-bold text-blue-600">{data.food.todayProtein}g</p>
+                      <p className="text-2xl font-bold text-blue-600">{data.food.totalProtein}g</p>
                       <p className="text-[10px] text-gray-500 uppercase font-medium mt-0.5">Protein</p>
                       <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
                         <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pPct}%` }} />
@@ -354,7 +383,7 @@ export default function DashboardPage() {
                       <p className="text-[10px] text-gray-400 mt-0.5">{pPct}%</p>
                     </div>
                     <div className="bg-yellow-50 rounded-xl p-3 text-center">
-                      <p className="text-2xl font-bold text-yellow-600">{data.food.todayCarbs}g</p>
+                      <p className="text-2xl font-bold text-yellow-600">{data.food.totalCarbs}g</p>
                       <p className="text-[10px] text-gray-500 uppercase font-medium mt-0.5">Carbs</p>
                       <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
                         <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${cPct}%` }} />
@@ -362,7 +391,7 @@ export default function DashboardPage() {
                       <p className="text-[10px] text-gray-400 mt-0.5">{cPct}%</p>
                     </div>
                     <div className="bg-red-50 rounded-xl p-3 text-center">
-                      <p className="text-2xl font-bold text-red-500">{data.food.todayFat}g</p>
+                      <p className="text-2xl font-bold text-red-500">{data.food.totalFat}g</p>
                       <p className="text-[10px] text-gray-500 uppercase font-medium mt-0.5">Fat</p>
                       <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
                         <div className="h-full bg-red-400 rounded-full" style={{ width: `${fPct}%` }} />
@@ -374,12 +403,13 @@ export default function DashboardPage() {
               })()}
             </div>
 
-            {/* Food breakdown list */}
-            {data.food.todayFoods.length > 0 && (
+            {data.food.foods.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">What you ate today</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                  Food log ({data.food.foods.length} items)
+                </p>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {data.food.todayFoods.map((food, i) => (
+                  {data.food.foods.map((food, i) => (
                     <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{food.name}</p>
@@ -399,8 +429,8 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {data.food.todayFoods.length === 0 && (
-              <p className="text-center text-sm text-gray-400 py-4">No food logged today</p>
+            {data.food.foods.length === 0 && (
+              <p className="text-center text-sm text-gray-400 py-4">No food logged</p>
             )}
           </div>
         </div>

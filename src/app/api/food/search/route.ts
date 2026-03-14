@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-interface OpenFoodFactsProduct {
-  product_name?: string;
-  nutriments?: {
-    'energy-kcal_100g'?: number;
-    'energy-kcal_serving'?: number;
-  };
-  serving_size?: string;
-  brands?: string;
-  image_small_url?: string;
+interface USDAFood {
+  description: string;
+  brandName?: string;
+  brandOwner?: string;
+  foodNutrients: {
+    nutrientName: string;
+    value: number;
+    unitName: string;
+  }[];
+  servingSize?: number;
+  servingSizeUnit?: string;
 }
 
 export async function GET(request: NextRequest) {
@@ -20,13 +22,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const apiKey = process.env.USDA_API_KEY || 'DEMO_KEY';
     const res = await fetch(
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10&fields=product_name,nutriments,serving_size,brands,image_small_url`,
-      {
-        headers: {
-          'User-Agent': 'LifeDashboard/1.0 - Personal Use',
-        },
-      }
+      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=10&api_key=${apiKey}`,
+      { next: { revalidate: 3600 } }
     );
 
     if (!res.ok) {
@@ -34,18 +33,27 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await res.json();
-    const products = (data.products || []) as OpenFoodFactsProduct[];
+    const foods = (data.foods || []) as USDAFood[];
 
-    const results = products
-      .filter((p) => p.product_name)
-      .map((p) => ({
-        name: p.product_name || '',
-        brand: p.brands || '',
-        calories_per_100g: Math.round(p.nutriments?.['energy-kcal_100g'] || 0),
-        calories_per_serving: Math.round(p.nutriments?.['energy-kcal_serving'] || 0),
-        serving_size: p.serving_size || '',
-        image: p.image_small_url || '',
-      }));
+    const results = foods.map((f) => {
+      const energyNutrient = f.foodNutrients.find(
+        (n) => n.nutrientName === 'Energy' && n.unitName === 'KCAL'
+      );
+      const calories = Math.round(energyNutrient?.value || 0);
+      const brand = f.brandName || f.brandOwner || '';
+      const serving = f.servingSize
+        ? `${f.servingSize}${f.servingSizeUnit || 'g'}`
+        : '100g';
+
+      return {
+        name: f.description,
+        brand,
+        calories_per_100g: calories,
+        calories_per_serving: calories,
+        serving_size: serving,
+        image: '',
+      };
+    });
 
     return NextResponse.json(results);
   } catch {
